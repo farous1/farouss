@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>تشفير اللينكات</title>
+<style>
+  body { font-family:"Segoe UI",Tahoma,Arial,sans-serif; max-width:640px; margin:30px auto; padding:0 16px; }
+  input, textarea { width:100%; padding:10px; margin:6px 0; font-size:1rem; box-sizing:border-box; }
+  button { padding:10px 18px; font-size:1rem; cursor:pointer; }
+  textarea { direction:ltr; font-family:monospace; font-size:.8rem; }
+  .warn { color:#b91c1c; }
+</style>
+</head>
+<body>
+<h2>تشفير اللينكات</h2>
+<p class="warn">افتح الصفحة دي على جهازك بس. الباسوردات مش بتتبعت لأي مكان، التشفير بيحصل في المتصفح.</p>
+<input id="title" placeholder="اسم اللينك (اللي هيظهر للمستخدم)">
+<input id="url" placeholder="https://... اللينك الحقيقي" dir="ltr">
+<input id="pw" type="text" placeholder="الباسورد (اختار باسورد قوي وطويل)">
+<button id="add">أضف</button>
+<p id="count"></p>
+<p>انسخ الناتج ده والصقه جوه <code>const LINKS = [ ... ]</code> في index.html:</p>
+<textarea id="out" rows="12" readonly></textarea>
+<script>
+const ITER = 600000;
+const b64 = a => btoa(String.fromCharCode(...new Uint8Array(a)));
+const entries = [];
+
+async function enc(title, url, pw) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: ITER, hash: 'SHA-256' },
+    km, { name: 'AES-GCM', length: 256 }, false, ['encrypt']);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(url));
+  return { title, salt: b64(salt), iv: b64(iv), data: b64(ct) };
+}
+
+document.getElementById('add').onclick = async () => {
+  const title = document.getElementById('title').value.trim();
+  const url = document.getElementById('url').value.trim();
+  const pw = document.getElementById('pw').value;
+  if (!title || !/^https?:\/\//i.test(url) || pw.length < 8) {
+    alert('املا كل الخانات، واللينك لازم يبدأ بـ https://، والباسورد 8 حروف على الأقل.');
+    return;
+  }
+  entries.push(await enc(title, url, pw));
+  document.getElementById('out').value = entries.map(e => '  ' + JSON.stringify(e)).join(',\n');
+  document.getElementById('count').textContent = 'عدد اللينكات: ' + entries.length;
+  ['title', 'url', 'pw'].forEach(i => document.getElementById(i).value = '');
+};
+</script>
+</body>
+</html>
